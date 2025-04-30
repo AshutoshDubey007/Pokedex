@@ -1,8 +1,9 @@
+
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
-import type { Pokemon } from "@/services/poke-api";
-import { getPokemonList, getPokemonTypes } from "@/services/poke-api";
+import { useState, useEffect, useCallback } from "react";
+import type { Pokemon, PokemonDetail } from "@/services/poke-api"; // Import PokemonDetail
+import { getPokemonList, getPokemonTypes, getPokemonDetails } from "@/services/poke-api"; // Import getPokemonDetails
 import { Header } from "@/components/header";
 import { Input } from "@/components/ui/input";
 import {
@@ -13,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { PokemonGrid } from "@/components/pokemon-grid";
+import { PokemonDetailModal } from "@/components/pokemon-detail-modal"; // Import the modal
 import { useToast } from "@/hooks/use-toast";
 
 export default function Home() {
@@ -20,10 +22,15 @@ export default function Home() {
   const [filteredPokemon, setFilteredPokemon] = useState<Pokemon[]>([]);
   const [pokemonTypes, setPokemonTypes] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState<string>("");
-  const [selectedType, setSelectedType] = useState<string>("all"); // Default to "all"
+  const [selectedType, setSelectedType] = useState<string>("all");
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
+
+  // State for the modal
+  const [selectedPokemonDetail, setSelectedPokemonDetail] = useState<PokemonDetail | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
+  const [isModalLoading, setIsModalLoading] = useState<boolean>(false);
 
   // Fetch initial data (Pokemon list and types)
   useEffect(() => {
@@ -36,12 +43,12 @@ export default function Home() {
           getPokemonTypes(),
         ]);
         setAllPokemon(pokemonList);
-        setFilteredPokemon(pokemonList); // Initially show all
-        setPokemonTypes(["all", ...typesList]); // Add "all" option
+        setFilteredPokemon(pokemonList);
+        setPokemonTypes(["all", ...typesList]);
       } catch (err: any) {
-        console.error("Failed to fetch data:", err);
+        console.error("Failed to fetch initial data:", err);
         setError(
-          err.message || "An unknown error occurred while fetching data."
+          err.message || "An unknown error occurred while fetching initial data."
         );
         toast({
           title: "Error Fetching Data",
@@ -55,20 +62,18 @@ export default function Home() {
     };
 
     fetchData();
-  }, [toast]); // Add toast dependency
+  }, [toast]);
 
-  // Filter logic - useMemo for optimization
+  // Filter logic
   useEffect(() => {
     let results = allPokemon;
 
-    // Filter by search term (case-insensitive)
     if (searchTerm) {
       results = results.filter((pokemon) =>
         pokemon.name.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
-    // Filter by selected type
     if (selectedType !== "all") {
       results = results.filter((pokemon) =>
         pokemon.types.some(
@@ -87,6 +92,42 @@ export default function Home() {
   const handleTypeChange = (value: string) => {
     setSelectedType(value);
   };
+
+  // Function to handle clicking a Pokemon card
+  const handlePokemonClick = useCallback(async (pokemon: Pokemon) => {
+    setIsModalLoading(true);
+    setIsModalOpen(true);
+    setSelectedPokemonDetail(null); // Clear previous detail
+    try {
+      const details = await getPokemonDetails(pokemon.id);
+      setSelectedPokemonDetail(details);
+      if (!details) {
+         toast({
+            title: "Pokemon Not Found",
+            description: `Could not fetch details for ${pokemon.name}.`,
+            variant: "destructive",
+         });
+      }
+    } catch (err: any) {
+      console.error("Failed to fetch Pokemon details:", err);
+      toast({
+        title: "Error Fetching Details",
+        description: `Could not load details for ${pokemon.name}. Please try again.`,
+        variant: "destructive",
+      });
+       setSelectedPokemonDetail(null); // Ensure detail is null on error
+    } finally {
+      setIsModalLoading(false);
+    }
+  }, [toast]);
+
+  // Function to close the modal
+  const handleCloseModal = useCallback(() => {
+    setIsModalOpen(false);
+    // Optional: Delay clearing details for smoother transition out
+    // setTimeout(() => setSelectedPokemonDetail(null), 300);
+  }, []);
+
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -123,6 +164,7 @@ export default function Home() {
           pokemonList={filteredPokemon}
           isLoading={isLoading}
           error={error}
+          onPokemonClick={handlePokemonClick} // Pass the click handler
         />
       </main>
       <footer className="py-4 text-center text-sm text-muted-foreground border-t">
@@ -137,6 +179,14 @@ export default function Home() {
         </a>
         . App built with Next.js and Shadcn/ui.
       </footer>
+
+      {/* Render the Modal */}
+      <PokemonDetailModal
+         pokemonDetail={selectedPokemonDetail}
+         isLoading={isModalLoading}
+         isOpen={isModalOpen}
+         onClose={handleCloseModal}
+      />
     </div>
   );
 }

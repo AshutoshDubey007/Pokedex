@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { Pokemon } from "@/services/poke-api";
@@ -8,12 +9,14 @@ interface PokemonGridProps {
   pokemonList: Pokemon[];
   isLoading: boolean;
   error: string | null;
+  onPokemonClick?: (pokemon: Pokemon) => void; // Add click handler prop
 }
 
 export function PokemonGrid({
   pokemonList,
   isLoading,
   error,
+  onPokemonClick, // Destructure the prop
 }: PokemonGridProps) {
   if (error) {
     return (
@@ -45,7 +48,11 @@ export function PokemonGrid({
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
       {pokemonList.map((pokemon) => (
-        <PokemonCard key={pokemon.id} pokemon={pokemon} />
+        <PokemonCard
+          key={pokemon.id}
+          pokemon={pokemon}
+          onClick={onPokemonClick} // Pass the click handler to the card
+        />
       ))}
     </div>
   );
