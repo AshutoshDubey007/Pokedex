@@ -16,6 +16,17 @@ import {
 import { PokemonGrid } from "@/components/pokemon-grid";
 import { PokemonDetailModal } from "@/components/pokemon-detail-modal"; // Import the modal
 import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+import { WandSparkles } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { generatePokemonDescription } from "@/ai/flows/generate-pokemon-description-flow"; // Import the flow
 
 export default function Home() {
   const [allPokemon, setAllPokemon] = useState<Pokemon[]>([]);
@@ -27,10 +38,17 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
-  // State for the modal
+  // State for the detail modal
   const [selectedPokemonDetail, setSelectedPokemonDetail] = useState<PokemonDetail | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
-  const [isModalLoading, setIsModalLoading] = useState<boolean>(false);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState<boolean>(false);
+  const [isDetailModalLoading, setIsDetailModalLoading] = useState<boolean>(false);
+
+  // State for AI description modal
+  const [isDescriptionModalOpen, setIsDescriptionModalOpen] = useState<boolean>(false);
+  const [isDescriptionLoading, setIsDescriptionLoading] = useState<boolean>(false);
+  const [pokemonDescription, setPokemonDescription] = useState<string>("");
+  const [descriptionError, setDescriptionError] = useState<string | null>(null);
+
 
   // Fetch initial data (Pokemon list and types)
   useEffect(() => {
@@ -75,6 +93,7 @@ export default function Home() {
     }
 
     if (selectedType !== "all") {
+      // Filter based on the types fetched initially
       results = results.filter((pokemon) =>
         pokemon.types.some(
           (type) => type.toLowerCase() === selectedType.toLowerCase()
@@ -95,19 +114,23 @@ export default function Home() {
 
   // Function to handle clicking a Pokemon card
   const handlePokemonClick = useCallback(async (pokemon: Pokemon) => {
-    setIsModalLoading(true);
-    setIsModalOpen(true);
+    setIsDetailModalLoading(true);
+    setIsDetailModalOpen(true);
     setSelectedPokemonDetail(null); // Clear previous detail
     try {
+      // Use the full pokemon.id (number) for fetching details
       const details = await getPokemonDetails(pokemon.id);
-      setSelectedPokemonDetail(details);
-      if (!details) {
+       if (!details) {
          toast({
             title: "Pokemon Not Found",
             description: `Could not fetch details for ${pokemon.name}.`,
             variant: "destructive",
          });
+         setIsDetailModalOpen(false); // Close modal if not found
+         return;
       }
+      setSelectedPokemonDetail(details);
+
     } catch (err: any) {
       console.error("Failed to fetch Pokemon details:", err);
       toast({
@@ -116,30 +139,67 @@ export default function Home() {
         variant: "destructive",
       });
        setSelectedPokemonDetail(null); // Ensure detail is null on error
+       setIsDetailModalOpen(false); // Close modal on error
     } finally {
-      setIsModalLoading(false);
+      setIsDetailModalLoading(false);
     }
   }, [toast]);
 
-  // Function to close the modal
-  const handleCloseModal = useCallback(() => {
-    setIsModalOpen(false);
+  // Function to close the detail modal
+  const handleCloseDetailModal = useCallback(() => {
+    setIsDetailModalOpen(false);
     // Optional: Delay clearing details for smoother transition out
     // setTimeout(() => setSelectedPokemonDetail(null), 300);
+  }, []);
+
+   // Function to open AI description modal
+  const handleGenerateDescriptionClick = useCallback(() => {
+    if (!selectedPokemonDetail) return;
+
+    setIsDescriptionModalOpen(true);
+    setIsDescriptionLoading(true);
+    setPokemonDescription("");
+    setDescriptionError(null);
+
+
+    generatePokemonDescription({ pokemonName: selectedPokemonDetail.name })
+      .then((output) => {
+        setPokemonDescription(output.description);
+      })
+      .catch((err: any) => {
+        console.error("Failed to generate Pokémon description:", err);
+        setDescriptionError("Could not generate description. The AI might be busy, please try again.");
+        toast({
+          title: "AI Error",
+          description: "Failed to generate description.",
+          variant: "destructive",
+        });
+      })
+      .finally(() => {
+        setIsDescriptionLoading(false);
+      });
+  }, [selectedPokemonDetail, toast]);
+
+  // Function to close AI description modal
+  const handleCloseDescriptionModal = useCallback(() => {
+    setIsDescriptionModalOpen(false);
+    setPokemonDescription("");
+    setDescriptionError(null);
   }, []);
 
 
   return (
     <div className="flex min-h-screen flex-col">
       <Header />
-      <main className="flex-1 container py-8">
-        <div className="mb-8 flex flex-col sm:flex-row gap-4">
+      <main className="flex-1 container py-8 flex flex-col items-center"> {/* Added flex flex-col items-center */}
+        {/* Centered the search/filter controls */}
+        <div className="mb-8 flex flex-col sm:flex-row gap-4 justify-center items-center w-full max-w-md"> {/* Added w-full max-w-md */}
           <Input
             type="search"
             placeholder="Search Pokémon by name..."
             value={searchTerm}
             onChange={handleSearchChange}
-            className="flex-grow sm:max-w-xs"
+            className="w-full sm:flex-1" // Adjusted width for responsiveness
             aria-label="Search Pokémon by name"
           />
           <Select
@@ -160,12 +220,15 @@ export default function Home() {
           </Select>
         </div>
 
-        <PokemonGrid
-          pokemonList={filteredPokemon}
-          isLoading={isLoading}
-          error={error}
-          onPokemonClick={handlePokemonClick} // Pass the click handler
-        />
+        {/* Make PokemonGrid take full width available */}
+        <div className="w-full">
+            <PokemonGrid
+              pokemonList={filteredPokemon}
+              isLoading={isLoading}
+              error={error}
+              onPokemonClick={handlePokemonClick} // Pass the click handler
+            />
+        </div>
       </main>
       <footer className="py-4 text-center text-sm text-muted-foreground border-t">
         Data fetched from{" "}
@@ -180,13 +243,43 @@ export default function Home() {
         . App built with Next.js and Shadcn/ui.
       </footer>
 
-      {/* Render the Modal */}
+      {/* Render the Detail Modal */}
       <PokemonDetailModal
          pokemonDetail={selectedPokemonDetail}
-         isLoading={isModalLoading}
-         isOpen={isModalOpen}
-         onClose={handleCloseModal}
+         isLoading={isDetailModalLoading}
+         isOpen={isDetailModalOpen}
+         onClose={handleCloseDetailModal}
+         onGenerateDescription={handleGenerateDescriptionClick} // Pass the AI trigger function
       />
+
+       {/* Render the AI Description Modal */}
+       <Dialog open={isDescriptionModalOpen} onOpenChange={(open) => !open && handleCloseDescriptionModal()}>
+         <DialogContent className="sm:max-w-[500px]">
+           <DialogHeader>
+             <DialogTitle>AI Generated Description for {selectedPokemonDetail?.name}</DialogTitle>
+             <DialogDescription>
+               Powered by Genkit. This description is generated by AI and may not be perfectly accurate.
+             </DialogDescription>
+           </DialogHeader>
+           <div className="py-4 min-h-[100px]">
+             {isDescriptionLoading ? (
+               <div className="flex justify-center items-center h-full">
+                 <WandSparkles className="h-6 w-6 animate-spin text-primary" />
+                 <span className="ml-2">Generating...</span>
+               </div>
+             ) : descriptionError ? (
+                <p className="text-destructive text-center">{descriptionError}</p>
+             ) : (
+               <p className="text-sm whitespace-pre-wrap">{pokemonDescription}</p>
+             )}
+           </div>
+           <DialogFooter>
+             <Button type="button" variant="secondary" onClick={handleCloseDescriptionModal}>
+               Close
+             </Button>
+           </DialogFooter>
+         </DialogContent>
+       </Dialog>
     </div>
   );
 }

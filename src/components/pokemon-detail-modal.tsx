@@ -16,12 +16,14 @@ import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton"; // Import Skeleton
 import { Button } from "@/components/ui/button"; // Import Button for close
+import { WandSparkles } from "lucide-react"; // Import icon for AI button
 
 interface PokemonDetailModalProps {
   pokemonDetail: PokemonDetail | null;
   isLoading: boolean;
   isOpen: boolean;
   onClose: () => void;
+  onGenerateDescription: () => void; // Add prop for triggering AI description
 }
 
 // Re-use or redefine type color logic if needed, ensure consistency
@@ -56,6 +58,7 @@ export function PokemonDetailModal({
   isLoading,
   isOpen,
   onClose,
+  onGenerateDescription, // Destructure the new prop
 }: PokemonDetailModalProps) {
 
   const handleOpenChange = (open: boolean) => {
@@ -92,8 +95,9 @@ export function PokemonDetailModal({
                   </div>
                ))}
             </div>
-            <DialogFooter>
+            <DialogFooter className="sm:justify-center gap-2"> {/* Added gap */}
                <Skeleton className="h-10 w-20"/>
+               <Skeleton className="h-10 w-36"/> {/* Skeleton for AI button */}
             </DialogFooter>
           </div>
         ) : pokemonDetail ? (
@@ -168,10 +172,14 @@ export function PokemonDetailModal({
                 </div>
               </div>
             </div>
-            <DialogFooter className="sm:justify-center">
+            <DialogFooter className="sm:justify-center gap-2 pt-4"> {/* Added gap and padding-top */}
               <Button type="button" variant="secondary" onClick={onClose}>
                 Close
               </Button>
+               <Button type="button" onClick={onGenerateDescription}>
+                 <WandSparkles className="mr-2 h-4 w-4" />
+                 Generate Description
+               </Button>
             </DialogFooter>
           </>
         ) : (
